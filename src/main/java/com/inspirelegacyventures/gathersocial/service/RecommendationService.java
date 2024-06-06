@@ -75,11 +75,12 @@ public class RecommendationService {
             HttpEntity<String> entity = new HttpEntity<>(headers);
             ResponseEntity<YelpResponse> response = restTemplate.exchange(url, HttpMethod.GET, entity, YelpResponse.class);
 
-            List<String> yelpRecommendations = response.getBody().getBusinesses().stream()
-                    .map(Business::getName)
-                    .collect(Collectors.toList());
-
-            recommendations.addAll(yelpRecommendations);
+            if (response != null && response.getBody() != null) {
+                List<String> yelpRecommendations = response.getBody().getBusinesses().stream()
+                        .map(Business::getName)
+                        .collect(Collectors.toList());
+                recommendations.addAll(yelpRecommendations);
+            }
         }
 
         return recommendations.stream().distinct().limit(3).collect(Collectors.toList());
@@ -108,29 +109,5 @@ public class RecommendationService {
         double averageLongitude = totalLongitude / count;
 
         return averageLatitude + "," + averageLongitude;
-    }
-
-    private static class YelpResponse {
-        private List<Business> businesses;
-
-        public List<Business> getBusinesses() {
-            return businesses;
-        }
-
-        public void setBusinesses(List<Business> businesses) {
-            this.businesses = businesses;
-        }
-    }
-
-    private static class Business {
-        private String name;
-
-        public String getName() {
-            return name;
-        }
-
-        public void setName(String name) {
-            this.name = name;
-        }
     }
 }

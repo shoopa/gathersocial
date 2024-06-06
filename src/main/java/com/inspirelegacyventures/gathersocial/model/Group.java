@@ -3,7 +3,6 @@ package com.inspirelegacyventures.gathersocial.model;
 import jakarta.persistence.*;
 import lombok.Data;
 import lombok.NoArgsConstructor;
-import com.fasterxml.jackson.annotation.JsonBackReference;
 
 import java.util.HashSet;
 import java.util.Set;
@@ -25,7 +24,6 @@ public class Group {
             joinColumns = @JoinColumn(name = "group_id"),
             inverseJoinColumns = @JoinColumn(name = "user_id")
     )
-    @JsonBackReference
     private Set<User> members = new HashSet<>();
 
     public void addMember(User user) {
@@ -34,13 +32,5 @@ public class Group {
 
     public void removeMember(User user) {
         members.remove(user);
-    }
-
-    @Override
-    public String toString() {
-        return "Group{" +
-                "id=" + id +
-                ", name='" + name + '\'' +
-                '}';
     }
 }

@@ -3,7 +3,6 @@ package com.inspirelegacyventures.gathersocial.model;
 import jakarta.persistence.*;
 import lombok.Data;
 import lombok.NoArgsConstructor;
-import com.fasterxml.jackson.annotation.JsonManagedReference;
 
 import java.util.HashMap;
 import java.util.HashSet;
@@ -36,27 +35,6 @@ public class User {
     @Column(name = "preferences")
     private Map<ActivityType, String> activityPreferences = new HashMap<>();
 
-    @ManyToMany(mappedBy = "members")
-    @JsonManagedReference
-    private Set<Group> groups = new HashSet<>();
-
     @OneToMany(mappedBy = "user")
     private Set<Vote> votes = new HashSet<>();
-
-    public void addGroup(Group group) {
-        this.groups.add(group);
-    }
-
-    @Override
-    public String toString() {
-        return "User{" +
-                "id=" + id +
-                ", username='" + username + '\'' +
-                ", email='" + email + '\'' +
-                ", firstname='" + firstname + '\'' +
-                ", lastname='" + lastname + '\'' +
-                ", homeLocation='" + homeLocation + '\'' +
-                ", currentLocation='" + currentLocation + '\'' +
-                '}';
-    }
 }

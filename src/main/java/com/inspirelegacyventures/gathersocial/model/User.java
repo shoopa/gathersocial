@@ -35,6 +35,18 @@ public class User {
     @Column(name = "preferences")
     private Map<ActivityType, String> activityPreferences = new HashMap<>();
 
+    @OneToMany(cascade = CascadeType.ALL, orphanRemoval = true)
+    @JoinColumn(name = "user_id")
+    private Set<DynamicPreferences> dynamicPreferences = new HashSet<>();
+
     @OneToMany(mappedBy = "user")
     private Set<Vote> votes = new HashSet<>();
+
+    public void addDynamicPreference(DynamicPreferences preference) {
+        this.dynamicPreferences.add(preference);
+    }
+
+    public void removeDynamicPreference(DynamicPreferences preference) {
+        this.dynamicPreferences.remove(preference);
+    }
 }

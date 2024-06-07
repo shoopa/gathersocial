@@ -34,24 +34,40 @@ public class RecommendationService {
             ActivityType.DRINKS, "bars"
     );
 
-    public List<String> getRecommendations(Long groupId, ActivityType activityType, int radius) {
+    private Map<String, YelpResponse.Business> feedbackData = new HashMap<>();
+
+    public Map<String, List<YelpResponse.Business>> getRecommendations(Long groupId, ActivityType activityType, int radius) {
         Group group = groupRepository.findById(groupId).orElseThrow(() -> new RuntimeException("Group not found"));
 
         // Calculate central location
         String centralLocation = getCentralLocation(group.getMembers());
 
         // Aggregate preferences
-        List<String> allPreferences = new ArrayList<>();
+        Map<String, Long> preferenceCounts = new HashMap<>();
         for (User user : group.getMembers()) {
-            String preferences = user.getActivityPreferences().get(activityType);
-            if (preferences != null) {
-                allPreferences.addAll(Arrays.asList(preferences.split(",")));
+            String dynamicPrefs = user.getDynamicPreferences().stream()
+                    .filter(p -> p.getActivityType() == activityType)
+                    .map(p -> p.getCuisinePreferences())
+                    .findFirst()
+                    .orElse("");
+            String activityPrefs = user.getActivityPreferences().get(activityType);
+
+            // Log user preferences
+            System.out.println("User: " + user.getUsername());
+            System.out.println("Dynamic Preferences: " + dynamicPrefs);
+            System.out.println("Activity Preferences: " + activityPrefs);
+
+            if (dynamicPrefs != null && !dynamicPrefs.isEmpty()) {
+                for (String preference : dynamicPrefs.split(",")) {
+                    preferenceCounts.merge(preference.trim(), 2L, Long::sum);
+                }
+            }
+            if (activityPrefs != null && !activityPrefs.isEmpty()) {
+                for (String preference : activityPrefs.split(",")) {
+                    preferenceCounts.merge(preference.trim(), 1L, Long::sum);
+                }
             }
         }
-
-        // Count occurrences of each preference
-        Map<String, Long> preferenceCounts = allPreferences.stream()
-                .collect(Collectors.groupingBy(preference -> preference.trim(), Collectors.counting()));
 
         // Get the top 3 preferences
         List<String> topPreferences = preferenceCounts.entrySet().stream()
@@ -60,14 +76,16 @@ public class RecommendationService {
                 .map(Map.Entry::getKey)
                 .collect(Collectors.toList());
 
-        // Get Yelp recommendations
-        String yelpCategory = activityTypeToYelpCategory.get(activityType);
-        if (yelpCategory == null) {
-            throw new RuntimeException("Invalid activity type");
-        }
+        System.out.println("Top Preferences: " + topPreferences);
 
-        List<String> recommendations = new ArrayList<>();
+        // Get Yelp recommendations
+        Map<String, List<YelpResponse.Business>> recommendations = new LinkedHashMap<>();
         for (String preference : topPreferences) {
+            String yelpCategory = activityTypeToYelpCategory.get(activityType);
+            if (yelpCategory == null) {
+                throw new RuntimeException("Invalid activity type");
+            }
+
             String url = YELP_API_URL + "?categories=" + yelpCategory + "&term=" + preference + "&location=" + centralLocation + "&radius=" + (radius * 1609); // Convert miles to meters
             HttpHeaders headers = new HttpHeaders();
             headers.set("Authorization", "Bearer " + yelpApiKey);
@@ -76,14 +94,64 @@ public class RecommendationService {
             ResponseEntity<YelpResponse> response = restTemplate.exchange(url, HttpMethod.GET, entity, YelpResponse.class);
 
             if (response != null && response.getBody() != null) {
-                List<String> yelpRecommendations = response.getBody().getBusinesses().stream()
-                        .map(Business::getName)
-                        .collect(Collectors.toList());
-                recommendations.addAll(yelpRecommendations);
+                recommendations.put(preference, response.getBody().getBusinesses().stream()
+                        .limit(3)
+                        .map(business -> {
+                            YelpResponse.Business b = new YelpResponse.Business();
+                            b.setName(business.getName());
+                            b.setImageUrl(business.getImageUrl());
+                            b.setRating(business.getRating());
+                            b.setAddress(formatAddress(business.getLocation()));
+                            b.setPhone(business.getPhone() != null ? business.getPhone() : "Phone not available");
+                            b.setPrice(business.getPrice() != null ? business.getPrice() : "Price not available");
+                            return b;
+                        })
+                        .collect(Collectors.toList()));
             }
         }
 
-        return recommendations.stream().distinct().limit(3).collect(Collectors.toList());
+        return recommendations;
+    }
+
+    private String formatAddress(YelpResponse.Location location) {
+        if (location == null) {
+            return "Address not available";
+        }
+        List<String> addressParts = new ArrayList<>();
+        if (location.getAddress1() != null) {
+            addressParts.add(location.getAddress1());
+        }
+        if (location.getCity() != null) {
+            addressParts.add(location.getCity());
+        }
+        if (location.getZipCode() != null) {
+            addressParts.add(location.getZipCode());
+        }
+        return addressParts.isEmpty() ? "Address not available" : String.join(", ", addressParts);
+    }
+
+    public void rateRecommendation(String businessName, int rating) {
+        YelpResponse.Business business = feedbackData.get(businessName);
+        if (business != null) {
+            business.setUserRating(rating);
+        } else {
+            YelpResponse.Business newBusiness = new YelpResponse.Business();
+            newBusiness.setName(businessName);
+            newBusiness.setUserRating(rating);
+            feedbackData.put(businessName, newBusiness);
+        }
+    }
+
+    public void submitFeedback(String businessName, boolean accurate) {
+        YelpResponse.Business business = feedbackData.get(businessName);
+        if (business != null) {
+            business.setAccurate(accurate);
+        } else {
+            YelpResponse.Business newBusiness = new YelpResponse.Business();
+            newBusiness.setName(businessName);
+            newBusiness.setAccurate(accurate);
+            feedbackData.put(businessName, newBusiness);
+        }
     }
 
     private String getCentralLocation(Set<User> members) {

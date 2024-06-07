@@ -1,14 +1,13 @@
 package com.inspirelegacyventures.gathersocial.controller;
 
 import com.inspirelegacyventures.gathersocial.dto.GroupDTO;
+import com.inspirelegacyventures.gathersocial.dto.UpdateDynamicPreferencesRequest;
 import com.inspirelegacyventures.gathersocial.dto.UpdateLocationRequest;
 import com.inspirelegacyventures.gathersocial.dto.UpdatePreferencesRequest;
-import com.inspirelegacyventures.gathersocial.model.ActivityType;
 import com.inspirelegacyventures.gathersocial.model.User;
-import com.inspirelegacyventures.gathersocial.repository.UserRepository;
 import com.inspirelegacyventures.gathersocial.service.GroupService;
+import com.inspirelegacyventures.gathersocial.service.UserService;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
@@ -20,7 +19,7 @@ import org.springframework.web.bind.annotation.*;
 public class UserController {
 
     @Autowired
-    private UserRepository userRepository;
+    private UserService userService;
 
     @Autowired
     private GroupService groupService;
@@ -28,50 +27,38 @@ public class UserController {
     @PostMapping
     public ResponseEntity<Object> createUser(@RequestBody User user) {
         try {
-            User savedUser = userRepository.save(user);
+            User savedUser = userService.createUser(user);
             return new ResponseEntity<>(savedUser, HttpStatus.CREATED);
-        } catch (DataIntegrityViolationException e) {
-            return new ResponseEntity<>("Email already exists", HttpStatus.CONFLICT);
+        } catch (Exception e) {
+            return new ResponseEntity<>(e.getMessage(), HttpStatus.CONFLICT);
         }
     }
 
     @GetMapping("/{id}")
     public ResponseEntity<User> getUser(@PathVariable Long id) {
-        return userRepository.findById(id)
+        return userService.getUserById(id)
                 .map(ResponseEntity::ok)
                 .orElseGet(() -> new ResponseEntity<>(HttpStatus.NOT_FOUND));
     }
 
     @PutMapping("/{id}/homeLocation")
     public ResponseEntity<User> updateUserHomeLocation(@PathVariable Long id, @RequestBody UpdateLocationRequest request) {
-        return userRepository.findById(id)
-                .map(user -> {
-                    user.setHomeLocation(request.getLocation());
-                    userRepository.save(user);
-                    return new ResponseEntity<>(user, HttpStatus.OK);
-                })
+        return userService.updateUserHomeLocation(id, request.getLocation())
+                .map(ResponseEntity::ok)
                 .orElseGet(() -> new ResponseEntity<>(HttpStatus.NOT_FOUND));
     }
 
     @PutMapping("/{id}/currentLocation")
     public ResponseEntity<User> updateUserCurrentLocation(@PathVariable Long id, @RequestBody UpdateLocationRequest request) {
-        return userRepository.findById(id)
-                .map(user -> {
-                    user.setCurrentLocation(request.getLocation());
-                    userRepository.save(user);
-                    return new ResponseEntity<>(user, HttpStatus.OK);
-                })
+        return userService.updateUserCurrentLocation(id, request.getLocation())
+                .map(ResponseEntity::ok)
                 .orElseGet(() -> new ResponseEntity<>(HttpStatus.NOT_FOUND));
     }
 
-    @PutMapping("/{id}/preferences")
+    @PutMapping("/{id}/activityPreferences")
     public ResponseEntity<User> updateUserPreferences(@PathVariable Long id, @RequestBody UpdatePreferencesRequest request) {
-        return userRepository.findById(id)
-                .map(user -> {
-                    user.getActivityPreferences().put(ActivityType.valueOf(request.getActivityType().toUpperCase()), request.getPreferences());
-                    userRepository.save(user);
-                    return new ResponseEntity<>(user, HttpStatus.OK);
-                })
+        return userService.updateUserPreferences(id, request.getActivityType(), request.getPreferences())
+                .map(ResponseEntity::ok)
                 .orElseGet(() -> new ResponseEntity<>(HttpStatus.NOT_FOUND));
     }
 
@@ -79,5 +66,15 @@ public class UserController {
     public ResponseEntity<Page<GroupDTO>> getUserGroups(@PathVariable Long userId, Pageable pageable) {
         Page<GroupDTO> groups = groupService.getGroupsByUserId(userId, pageable);
         return ResponseEntity.ok(groups);
+    }
+
+    @PutMapping("/{id}/dynamicPreferences")
+    public ResponseEntity<User> updateDynamicPreferences(@PathVariable Long id, @RequestBody UpdateDynamicPreferencesRequest request) {
+        try {
+            User updatedUser = userService.updateDynamicPreferences(id, request);
+            return new ResponseEntity<>(updatedUser, HttpStatus.OK);
+        } catch (RuntimeException e) {
+            return new ResponseEntity<>(HttpStatus.NOT_FOUND);
+        }
     }
 }

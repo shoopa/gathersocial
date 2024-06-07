@@ -28,6 +28,9 @@ class UserControllerTest {
     @Mock
     private GroupService groupService;
 
+    @Mock
+    private UserService userService;
+
     @BeforeEach
     void setUp() {
         MockitoAnnotations.openMocks(this);
